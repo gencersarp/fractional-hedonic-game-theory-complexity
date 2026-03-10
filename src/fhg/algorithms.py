@@ -1,5 +1,5 @@
 import random
-from typing import List, Set, Dict, Tuple
+from typing import List, Set, Dict, Tuple, Optional
 from .models import FractionalHedonicGame, Partition
 from .stability import StabilityAnalyzer
 

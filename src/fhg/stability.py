@@ -1,5 +1,6 @@
 from .models import FractionalHedonicGame, Partition
 from typing import Set, List, Optional
+from itertools import chain, combinations
 
 class StabilityAnalyzer:
     """
@@ -111,8 +112,32 @@ class StabilityAnalyzer:
         """
         Core Stability: No subset of players S can form a coalition such that 
         everyone in S is strictly better off than in their current partition.
-        Note: This is computationally hard (exponential subsets). 
-        Implementation requires specialized algorithms or heuristics for large N.
+        Note: This is O(2^n).
         """
-        # Placeholder: This will be implemented using a recursive search or solver.
-        raise NotImplementedError("Core Stability verification requires exponential check.")
+        return self.find_blocking_coalition(partition) is None
+
+    def find_blocking_coalition(self, partition: Partition) -> Optional[Set[int]]:
+        """
+        Finds a subset S that blocks the partition, if one exists.
+        """
+        n = self.game.n
+        players = list(range(n))
+        
+        # Iterate through all non-empty subsets (power set)
+        for r in range(1, n + 1):
+            for subset in combinations(players, r):
+                S = set(subset)
+                is_blocking = True
+                for player in S:
+                    current_u = partition.get_player_utility(player)
+                    new_u = self.game.get_utility(player, S)
+                    
+                    # Blocking condition: ALL players in S must strictly improve
+                    if new_u <= current_u + 1e-9: # epsilon for float precision
+                        is_blocking = False
+                        break
+                
+                if is_blocking:
+                    return S
+                    
+        return None

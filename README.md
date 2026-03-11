@@ -25,6 +25,8 @@ This project implements verifiers for the following solution concepts:
 
 ## Advanced Features
 
+-   **Exact Social Welfare Optimization**: Implementation of an Integer Linear Programming (ILP) formulation using `PuLP` to find the globally optimal partition.
+-   **Fairness Analysis**: Tools to calculate the Gini Coefficient, Egalitarian Welfare, and Envy-Freeness of coalition structures.
 -   **Social Welfare Maximization**: Uses Simulated Annealing to find partitions that maximize the sum of utilities (NP-hard).
 -   **Phase Transition Analysis**: A script to analyze how graph density $p$ affects the existence and reachability of Nash stable partitions.
 -   **Recursive Stability**: Implementation of Bernheim's CPNE definition for small-scale games.

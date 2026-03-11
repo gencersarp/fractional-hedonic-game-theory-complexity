@@ -92,3 +92,55 @@ class SearchAlgorithm:
             coalitions[c_idx].add(p)
             
         return [c for c in coalitions if len(c) > 0]
+
+class SocialWelfareSolver:
+    """
+    Heuristic solvers to maximize social welfare in FHGs.
+    Note: Social Welfare Maximization in FHGs is NP-hard.
+    """
+    def __init__(self, game: FractionalHedonicGame):
+        self.game = game
+
+    def simulated_annealing(self, 
+                            iterations: int = 5000, 
+                            initial_temp: float = 100.0, 
+                            cooling_rate: float = 0.99) -> Partition:
+        """
+        Maximizes social welfare using simulated annealing.
+        """
+        # Start with a random partition
+        search = SearchAlgorithm(self.game)
+        current_p = Partition(self.game, search._generate_random_partition())
+        current_welfare = current_p.total_social_welfare()
+        
+        best_p = current_p
+        best_welfare = current_welfare
+        
+        temp = initial_temp
+        
+        for i in range(iterations):
+            # Proposal: move a random player to a random coalition
+            player = random.randint(0, self.game.n - 1)
+            target_c_idx = random.randint(-1, len(current_p.coalitions) - 1)
+            
+            # Avoid moving to own coalition
+            if target_c_idx != -1 and player in current_p.coalitions[target_c_idx]:
+                continue
+                
+            next_p = search._apply_move(current_p, player, target_c_idx)
+            next_welfare = next_p.total_social_welfare()
+            
+            # Acceptance probability
+            delta = next_welfare - current_welfare
+            if delta > 0 or random.random() < np.exp(delta / temp):
+                current_p = next_p
+                current_welfare = next_welfare
+                
+                if current_welfare > best_welfare:
+                    best_p = current_p
+                    best_welfare = current_welfare
+            
+            temp *= cooling_rate
+            if temp < 1e-4: break
+            
+        return best_p

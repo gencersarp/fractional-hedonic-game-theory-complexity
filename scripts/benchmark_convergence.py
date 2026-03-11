@@ -6,39 +6,33 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 
 from fhg.utils import generate_benchmarks
-from fhg.algorithms import SearchAlgorithm
+from fhg.algorithms import SearchAlgorithm, SocialWelfareSolver
 from fhg.stability import StabilityAnalyzer
+from fhg.analysis import StabilityAnalysisSuite
 from fhg.models import Partition
 
-def run_benchmarks(n_players=15, trials=50):
-    print(f"--- Benchmarking FHG Convergence (N={n_players}, Trials={trials}) ---")
-    print(f"{'Topology':<20} | {'NS Success %':<12} | {'Avg Steps':<10}")
-    print("-" * 50)
+def run_benchmarks(n_players=15, trials=10):
+    print(f"--- Advanced FHG Complexity Analysis (N={n_players}) ---")
+    print(f"{'Topology':<20} | {'PoA (Est)':<10} | {'PoS (Est)':<10} | {'Cycling?'}")
+    print("-" * 65)
     
     benchmarks = generate_benchmarks(n_players)
     
     for name, game in benchmarks.items():
-        success_count = 0
-        total_steps = 0
+        suite = StabilityAnalysisSuite(game)
         
-        search = SearchAlgorithm(game)
-        analyzer = StabilityAnalyzer(game)
+        # Calculate PoA / PoS
+        metrics = suite.calculate_poa_pos(trials=trials)
         
-        for _ in range(trials):
-            # Start from random partition
-            initial_coalitions = search._generate_random_partition()
-            p = Partition(game, initial_coalitions)
-            
-            # Local search
-            final_p = search.improve_partition(p, max_steps=500)
-            
-            if analyzer.is_nash_stable(final_p):
-                success_count += 1
-                # Note: step count is not tracked in improve_partition currently, 
-                # but we could add it. For now, we'll just track success.
+        # Detect potential for cycling
+        has_cycles = suite.detect_cycling(max_steps=2000)
         
-        success_rate = (success_count / trials) * 100
-        print(f"{name:<20} | {success_rate:<12.1f} | {'N/A'}")
+        poa = f"{metrics.get('PoA', 0):.2f}" if 'PoA' in metrics else "N/A"
+        pos = f"{metrics.get('PoS', 0):.2f}" if 'PoS' in metrics else "N/A"
+        cycle_str = "YES" if has_cycles else "NO"
+        
+        print(f"{name:<20} | {poa:<10} | {pos:<10} | {cycle_str}")
 
 if __name__ == "__main__":
-    run_benchmarks(n_players=15, trials=50)
+    # Reducing trials for a quicker demonstration of complexity analysis
+    run_benchmarks(n_players=12, trials=5)

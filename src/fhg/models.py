@@ -66,5 +66,12 @@ class Partition:
         if c_idx is None: return 0.0
         return self.game.get_utility(player_idx, self.coalitions[c_idx])
 
+    def total_social_welfare(self) -> float:
+        """Sum of utilities of all players."""
+        return sum(self.get_player_utility(i) for i in range(self.game.n))
+
+    def average_utility(self) -> float:
+        return self.total_social_welfare() / self.game.n
+
     def __repr__(self):
         return f"Partition({[list(c) for c in self.coalitions]})"

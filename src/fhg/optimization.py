@@ -1,7 +1,7 @@
 import pulp
 import numpy as np
 from typing import List, Set, Tuple
-from .models import FractionalHedonicGame, Partition
+from .models import FractionalHedonicGame, Partition, HedonicGame
 from itertools import chain, combinations
 
 class ExactSocialWelfareSolver:
@@ -61,3 +61,93 @@ class ExactSocialWelfareSolver:
                 
         partition = Partition(self.game, final_coalitions)
         return partition, partition.total_social_welfare()
+
+class ColumnGenerationSolver:
+    """
+    Implements a Column Generation (Dantzig-Wolfe) approach.
+    RMP: Linear Relaxation of the Set Partitioning Problem.
+    Sub-problem: Finding a coalition S with positive reduced cost.
+    Reduced Cost(S) = Welfare(S) - sum_{i in S} shadow_price[i]
+    """
+    def __init__(self, game: HedonicGame):
+        self.game = game
+
+    def solve(self, max_iter: int = 50) -> Tuple[Partition, float]:
+        n = self.game.n
+        # Initial columns: Singletons
+        coalitions = [{i} for i in range(n)]
+        
+        for iteration in range(max_iter):
+            # 1. Solve RMP (Linear Relaxation)
+            prob = pulp.LpProblem("MasterProblem", pulp.LpMaximize)
+            x = pulp.LpVariable.dicts("x", range(len(coalitions)), lowBound=0, upBound=1, cat=pulp.LpContinuous)
+            
+            welfare_coeffs = [sum(self.game.get_utility(i, S) for i in S) for S in coalitions]
+            prob += pulp.lpSum([welfare_coeffs[k] * x[k] for k in range(len(coalitions))])
+            
+            # Shadow price constraints (dual variables)
+            constraints = []
+            for i in range(n):
+                c = pulp.lpSum([x[k] for k, S in enumerate(coalitions) if i in S]) == 1
+                prob += c
+                constraints.append(c)
+                
+            solver = pulp.PULP_CBC_CMD(msg=0)
+            prob.solve(solver)
+            
+            shadow_prices = [constraints[i].pi for i in range(n)]
+            
+            # 2. Pricing Sub-problem: maximize Reduced Cost
+            # This sub-problem is itself hard (often NP-hard), so we use a heuristic or solver.
+            new_S, reduced_cost = self._pricing_subproblem(shadow_prices)
+            
+            if reduced_cost <= 1e-4:
+                # No more columns with positive reduced cost found
+                break
+                
+            coalitions.append(new_S)
+
+        # 3. Solve final RMP as Integer Program
+        prob = pulp.LpProblem("FinalMasterProblem", pulp.LpMaximize)
+        x = pulp.LpVariable.dicts("x", range(len(coalitions)), cat=pulp.LpBinary)
+        welfare_coeffs = [sum(self.game.get_utility(i, S) for i in S) for S in coalitions]
+        prob += pulp.lpSum([welfare_coeffs[k] * x[k] for k in range(len(coalitions))])
+        for i in range(n):
+            prob += pulp.lpSum([x[k] for k, S in enumerate(coalitions) if i in S]) == 1
+        
+        prob.solve(solver)
+        
+        final_coalitions = [coalitions[k] for k in range(len(coalitions)) if pulp.value(x[k]) > 0.5]
+        partition = Partition(self.game, final_coalitions)
+        return partition, partition.total_social_welfare()
+
+    def _pricing_subproblem(self, shadow_prices: List[float]) -> Tuple[Set[int], float]:
+        """
+        Sub-problem: argmax_{S subset N} [ Welfare(S) - sum_{i in S} pi_i ]
+        We use a greedy heuristic with random restarts to find improving columns.
+        """
+        best_S = set()
+        best_rc = 0.0
+        
+        for _ in range(50): # Multiple restarts
+            S = {random.randint(0, self.game.n - 1)}
+            improved = True
+            while improved:
+                improved = False
+                # Try adding or removing players
+                for i in range(self.game.n):
+                    candidate_S = S ^ {i} # Toggle inclusion
+                    if not candidate_S: continue
+                    
+                    welfare = sum(self.game.get_utility(p, candidate_S) for p in candidate_S)
+                    rc = welfare - sum(shadow_prices[p] for p in candidate_S)
+                    
+                    if rc > best_rc:
+                        best_rc = rc
+                        best_S = candidate_S
+                        S = candidate_S
+                        improved = True
+                        break
+        return best_S, best_rc
+
+import random # for pricing subproblem

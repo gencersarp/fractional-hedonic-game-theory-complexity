@@ -1,89 +1,65 @@
 import numpy as np
 from typing import List, Set, Dict, Optional, Tuple
+from abc import ABC, abstractmethod
 
-class FractionalHedonicGame:
-    """
-    Represents a Fractional Hedonic Game (FHG).
-    
-    A set of players N = {1, ..., n} and a valuation matrix V = (v_ij),
-    where v_ij is the value player i assigns to player j.
-    The utility of player i in coalition S (containing i) is:
-    u_i(S) = sum_{j in S \ {i}} v_ij / |S|
-    """
+class HedonicGame(ABC):
+    """Abstract Base Class for Hedonic Games."""
+    def __init__(self, n: int, names: Optional[List[str]] = None):
+        self.n = n
+        self.names = names if names else [f"P{i}" for i in range(n)]
+
+    @abstractmethod
+    def get_utility(self, player_idx: int, coalition: Set[int]) -> float:
+        pass
+
+class FractionalHedonicGame(HedonicGame):
+    """Standard FHG implementation."""
     def __init__(self, valuations: np.ndarray, names: Optional[List[str]] = None):
-        self.n = valuations.shape[0]
-        if valuations.shape != (self.n, self.n):
-            raise ValueError("Valuation matrix must be square (n x n).")
-        
-        # Ensure diagonal is zero (no self-loops in utility)
+        super().__init__(valuations.shape[0], names)
         self.valuations = valuations.copy()
         np.fill_diagonal(self.valuations, 0.0)
         
-        self.names = names if names else [f"P{i}" for i in range(self.n)]
-        
     def get_utility(self, player_idx: int, coalition: Set[int]) -> float:
-        """Calculate the fractional utility of player i in a given coalition."""
-        if player_idx not in coalition:
-            return -float('inf')
-        
-        if len(coalition) <= 1:
-            return 0.0
-            
+        if player_idx not in coalition: return -float('inf')
+        if len(coalition) <= 1: return 0.0
         sum_vals = sum(self.valuations[player_idx, j] for j in coalition if j != player_idx)
         return sum_vals / len(coalition)
 
-    def is_symmetric(self) -> bool:
-        """Check if the valuation matrix is symmetric (v_ij = v_ji)."""
-        return np.allclose(self.valuations, self.valuations.T)
+class AdditivelySeparableHedonicGame(HedonicGame):
+    """
+    In ASHG, u_i(S) = sum_{j in S} v_ij. 
+    Unlike FHG, there is no normalization by |S|.
+    """
+    def __init__(self, valuations: np.ndarray, names: Optional[List[str]] = None):
+        super().__init__(valuations.shape[0], names)
+        self.valuations = valuations.copy()
+        np.fill_diagonal(self.valuations, 0.0)
+
+    def get_utility(self, player_idx: int, coalition: Set[int]) -> float:
+        if player_idx not in coalition: return -float('inf')
+        return sum(self.valuations[player_idx, j] for j in coalition)
 
 class AltruisticFHG(FractionalHedonicGame):
-    """
-    An extension where players care about their coalition members' utility.
-    u_i(S, alpha) = (1 - alpha) * u_i_self(S) + alpha * sum_{j in S \ {i}} u_j_self(S) / (|S|-1)
-    """
     def __init__(self, valuations: np.ndarray, alpha: float = 0.5, names: Optional[List[str]] = None):
         super().__init__(valuations, names)
         self.alpha = alpha
 
     def get_utility(self, player_idx: int, coalition: Set[int]) -> float:
-        if player_idx not in coalition:
-            return -float('inf')
-        if len(coalition) <= 1:
-            return 0.0
-            
-        # Selfish utility component
+        if player_idx not in coalition: return -float('inf')
+        if len(coalition) <= 1: return 0.0
         u_self = super().get_utility(player_idx, coalition)
-        
-        # Altruistic component (average utility of others)
         others = [j for j in coalition if j != player_idx]
         u_others = sum(super().get_utility(j, coalition) for j in others) / len(others)
-        
         return (1 - self.alpha) * u_self + self.alpha * u_others
 
 class Partition:
-    """
-    Represents a partition (coalition structure) of the players.
-    """
-    def __init__(self, game: FractionalHedonicGame, coalitions: List[Set[int]]):
+    def __init__(self, game: HedonicGame, coalitions: List[Set[int]]):
         self.game = game
         self.coalitions = coalitions
-        self._validate_partition()
         self.player_to_coalition = {}
         for idx, coalition in enumerate(self.coalitions):
             for player in coalition:
                 self.player_to_coalition[player] = idx
-
-    def _validate_partition(self):
-        all_players = set()
-        for s in self.coalitions:
-            for p in s:
-                if p in all_players:
-                    raise ValueError(f"Player {p} is in multiple coalitions.")
-                all_players.add(p)
-        if len(all_players) != self.game.n:
-             # It's possible to have an incomplete partition in some contexts, 
-             # but usually we want all players partitioned.
-             pass
 
     def get_player_utility(self, player_idx: int) -> float:
         c_idx = self.player_to_coalition.get(player_idx)
@@ -91,11 +67,7 @@ class Partition:
         return self.game.get_utility(player_idx, self.coalitions[c_idx])
 
     def total_social_welfare(self) -> float:
-        """Sum of utilities of all players."""
         return sum(self.get_player_utility(i) for i in range(self.game.n))
-
-    def average_utility(self) -> float:
-        return self.total_social_welfare() / self.game.n
 
     def __repr__(self):
         return f"Partition({[list(c) for c in self.coalitions]})"

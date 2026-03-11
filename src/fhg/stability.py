@@ -141,3 +141,71 @@ class StabilityAnalyzer:
                     return S
                     
         return None
+
+class CoalitionProofNashVerifier:
+    """
+    Verifies if a partition is a Coalition-Proof Nash Equilibrium (CPNE).
+    CPNE is a recursive refinement of Nash Stability where only 
+    'self-enforcing' deviations are considered.
+    """
+    def __init__(self, game: FractionalHedonicGame):
+        self.game = game
+
+    def is_cpne(self, partition: Partition) -> bool:
+        """
+        Recursive check for CPNE. For N < 10, this is feasible.
+        """
+        return self._is_stable_recursive(partition, list(range(self.game.n)))
+
+    def _is_stable_recursive(self, partition: Partition, players: List[int]) -> bool:
+        n = len(players)
+        if n == 0: return True
+        
+        # Check all possible deviating coalitions S subset of players
+        for r in range(1, n + 1):
+            for subset in combinations(players, r):
+                S = set(subset)
+                if self._is_self_enforcing_deviation(partition, S):
+                    return False # Found a self-enforcing deviation
+        return True
+
+    def _is_self_enforcing_deviation(self, partition: Partition, S: Set[int]) -> bool:
+        """
+        S is a self-enforcing deviation if:
+        1. All members of S are strictly better off in S than in 'partition'.
+        2. No sub-coalition T strictly subset of S has a self-enforcing deviation from S.
+        """
+        # Condition 1: Direct improvement for all members
+        for player in S:
+            if self.game.get_utility(player, S) <= partition.get_player_utility(player) + 1e-9:
+                return False
+        
+        # Condition 2: No internal sub-deviations (Recursive step)
+        # We need to construct a temporary partition where S is a coalition
+        # and check if it is stable against deviations by subsets of S.
+        # This is a simplification of the Bernheim et al. (1987) definition.
+        players_in_S = list(S)
+        for r in range(1, len(players_in_S)): # Strict subsets
+            for subset_t in combinations(players_in_S, r):
+                T = set(subset_t)
+                # If T has a self-enforcing deviation from S, then S is NOT self-enforcing.
+                if self._is_self_enforcing_deviation_from_S(S, T):
+                    return False
+        
+        return True
+
+    def _is_self_enforcing_deviation_from_S(self, S: Set[int], T: Set[int]) -> bool:
+        """Helper to check if T can deviate from S."""
+        # T members must prefer T over S
+        for player in T:
+            if self.game.get_utility(player, T) <= self.game.get_utility(player, S) + 1e-9:
+                return False
+        
+        # T must be internally self-enforcing (recursive)
+        players_in_T = list(T)
+        for r in range(1, len(players_in_T)):
+            for subset_u in combinations(players_in_T, r):
+                U = set(subset_u)
+                if self._is_self_enforcing_deviation_from_S(T, U):
+                    return False
+        return True

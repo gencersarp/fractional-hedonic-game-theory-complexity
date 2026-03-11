@@ -36,6 +36,30 @@ class FractionalHedonicGame:
         """Check if the valuation matrix is symmetric (v_ij = v_ji)."""
         return np.allclose(self.valuations, self.valuations.T)
 
+class AltruisticFHG(FractionalHedonicGame):
+    """
+    An extension where players care about their coalition members' utility.
+    u_i(S, alpha) = (1 - alpha) * u_i_self(S) + alpha * sum_{j in S \ {i}} u_j_self(S) / (|S|-1)
+    """
+    def __init__(self, valuations: np.ndarray, alpha: float = 0.5, names: Optional[List[str]] = None):
+        super().__init__(valuations, names)
+        self.alpha = alpha
+
+    def get_utility(self, player_idx: int, coalition: Set[int]) -> float:
+        if player_idx not in coalition:
+            return -float('inf')
+        if len(coalition) <= 1:
+            return 0.0
+            
+        # Selfish utility component
+        u_self = super().get_utility(player_idx, coalition)
+        
+        # Altruistic component (average utility of others)
+        others = [j for j in coalition if j != player_idx]
+        u_others = sum(super().get_utility(j, coalition) for j in others) / len(others)
+        
+        return (1 - self.alpha) * u_self + self.alpha * u_others
+
 class Partition:
     """
     Represents a partition (coalition structure) of the players.

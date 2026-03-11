@@ -20,6 +20,14 @@ This project implements verifiers for the following solution concepts:
 3.  **Contractual Individual Stability (CIS)**: Adds the constraint that the current coalition must also not be worse off by the player's departure.
 4.  **Core Stability**: A partition is in the core if no subset of players $S \subseteq N$ can form a new coalition such that everyone in $S$ is strictly better off.
     *   *Complexity*: Verification is co-NP-complete; existence is NP-hard.
+5.  **Coalition-Proof Nash Equilibrium (CPNE)**: A recursive refinement of Nash Stability where only "self-enforcing" deviations are considered. This prevents deviations that are themselves unstable.
+6.  **Altruistic FHGs**: Models where players care about the average utility of their coalition members, governed by an altruism coefficient $\alpha$.
+
+## Advanced Features
+
+-   **Social Welfare Maximization**: Uses Simulated Annealing to find partitions that maximize the sum of utilities (NP-hard).
+-   **Phase Transition Analysis**: A script to analyze how graph density $p$ affects the existence and reachability of Nash stable partitions.
+-   **Recursive Stability**: Implementation of Bernheim's CPNE definition for small-scale games.
 
 ## Project Structure
 

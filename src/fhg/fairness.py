@@ -1,3 +1,4 @@
+import math
 import numpy as np
 from .models import Partition
 
@@ -53,3 +54,26 @@ class FairnessMetrics:
                 envy_free_count += 1
                 
         return (envy_free_count / n) * 100
+
+    @staticmethod
+    def nash_welfare(partition: Partition) -> float:
+        """
+        Nash Social Welfare: geometric mean of player utilities.
+
+        Maximising NSW simultaneously promotes efficiency and fairness —
+        it is the unique welfare function satisfying Pareto optimality,
+        symmetry, scale invariance, and independence of unconcerned agents.
+
+        Utilities are shifted to be strictly positive before taking logs so
+        the metric remains meaningful for FHGs that can have negative values.
+        Returns 0.0 if all shifted utilities are zero.
+        """
+        utilities = [partition.get_player_utility(i) for i in range(partition.game.n)]
+        min_u = min(utilities)
+        if min_u < 0:
+            utilities = [u - min_u + 1e-9 for u in utilities]
+        if all(u <= 0 for u in utilities):
+            return 0.0
+        n = len(utilities)
+        log_sum = sum(math.log(max(u, 1e-300)) for u in utilities)
+        return math.exp(log_sum / n)

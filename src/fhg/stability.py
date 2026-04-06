@@ -108,6 +108,20 @@ class StabilityAnalyzer:
             
         return True
 
+    def stability_profile(self, partition: Partition) -> dict:
+        """Return all stability properties in one call.
+
+        Avoids redundant iteration when a caller needs the full picture.
+        Keys: nash_stable, individually_stable,
+        contractually_individually_stable, core_stable.
+        """
+        return {
+            "nash_stable": self.is_nash_stable(partition),
+            "individually_stable": self.is_individually_stable(partition),
+            "contractually_individually_stable": self.is_contractual_individually_stable(partition),
+            "core_stable": self.is_core_stable(partition),
+        }
+
     def is_core_stable(self, partition: Partition) -> bool:
         """
         Core Stability: No subset of players S can form a coalition such that 
